@@ -16,14 +16,15 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup asdf for runtimes
-        uses: asdf-vm/actions/install@v4
+      # Assume that python/poetry are installed on self-hosted
+      # - name: Setup asdf for runtimes
+      #   uses: asdf-vm/actions/install@v4
 
-      - name: Install asdf defined plugins
-        run: |
-          asdf plugin add python || true
-          asdf plugin add poetry || true
-          asdf install
+      # - name: Install asdf defined plugins
+      #   run: |
+      #     asdf plugin add python || true
+      #     asdf plugin add poetry || true
+      #     asdf install
 
       - name: Get poetry cache directory
         id: poetry-cache
