@@ -1,0 +1,46 @@
+name: "Run Pytest"
+
+on:
+  push:
+    branches:
+      - "main"
+      - "dev"
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  build-test:
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup asdf for runtimes
+        uses: asdf-vm/actions/install@v4
+
+      - name: Install asdf defined plugins
+        run: |
+          asdf plugin add python || true
+          asdf plugin add poetry || true
+          asdf install
+
+      - name: Get poetry cache directory
+        id: poetry-cache
+        run: echo "dir=$(poetry config cache-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.poetry-cache.outputs.dir }}
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install poetry dependencies
+        run: |
+          poetry install --no-root
+
+      - name: Run Pytest
+        run: |
+          poetry run pytest
