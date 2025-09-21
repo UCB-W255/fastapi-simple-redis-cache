@@ -9,6 +9,8 @@ license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.13,<4.0"
 dependencies = [
+    "fastapi (>=0.116.2,<0.117.0)",
+    "redis (>=6.4.0,<7.0.0)"
 ]
 
 
@@ -20,6 +22,16 @@ build-backend = "poetry.core.masonry.api"
 pytest = "^8.4.2"
 ruff = "^0.13.1"
 commitizen = "^4.9.1"
+fastapi = {extras = ["standard"], version = "^0.116.2"}
+pydantic = "^2.11.9"
+testcontainers = {extras = ["redis"], version = "^4.13.0"}
 
 [tool.commitizen]
 version_provider = "pep621"
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "INFO"
+filterwarnings = [
+    "ignore::DeprecationWarning"
+]
