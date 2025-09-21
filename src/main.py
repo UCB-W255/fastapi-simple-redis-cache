@@ -48,33 +48,49 @@ class middle_cache(BaseHTTPMiddleware):
         logger.info(f"Redis ping response: {self.redis_client.ping()}")
 
     async def dispatch(self, request: Request, call_next):
-        logger.info("Executing Middleware")
+        logger.info("Executing Redis Cache Middleware")
         start_time = time.perf_counter()
+        CACHE_SHOULD_STORE_FLAG = request.headers.get("cache-control") != "no-store"
+        SHOULD_RUN_DOWNSTREAM = True
         # ==========================================
-        request_content = request.query_params
-        requested_content_hash = self.hashkey_generator(str(request_content))
+        logger.info(f"{request.headers.get("cache-control")=}")
+        if CACHE_SHOULD_STORE_FLAG:
+            request_content = request.query_params
+            requested_content_hash = self.hashkey_generator(str(request_content))
 
-        logger.info(f"{requested_content_hash} Checking for value in redis")
-        returned_redis_content = self.redis_client.get(requested_content_hash)
+            logger.info(f"{requested_content_hash} Checking for value in redis")
+            returned_redis_content = self.redis_client.get(requested_content_hash)
 
-        if not returned_redis_content:
-            logger.info(f"{requested_content_hash} NOT FOUND")
+            if not returned_redis_content:
+                logger.info(f"{requested_content_hash} NOT FOUND")
+                SHOULD_RUN_DOWNSTREAM = True
+
+            else:
+                SHOULD_RUN_DOWNSTREAM = False
+                logger.info(f"{requested_content_hash} FOUND")
+                response = Response(
+                    content=returned_redis_content,
+                    media_type="application/json",
+                    headers={"x-cache-hit": "True"},
+                )
+
+        if SHOULD_RUN_DOWNSTREAM:
+            logger.info("Running downstream function")
             function_response = await call_next(request)
 
             if function_response.status_code != 200:
                 # Early exit before attempting to store bad values in redis
-                return function_response
+                return function_response, None
 
             # Extract body from function response iterator
-            chunks = []
-            async for chunk in function_response.body_iterator:
-                chunks.append(chunk)
+            chunks = [chunk async for chunk in function_response.body_iterator]
             response_body = b"".join(chunks)
 
-            self.redis_client.set(
-                requested_content_hash, response_body, ex=self.store_ttl
-            )
-            logger.info(f"{requested_content_hash} SET")
+            if CACHE_SHOULD_STORE_FLAG:
+                self.redis_client.set(
+                    requested_content_hash, response_body, ex=self.store_ttl
+                )
+                logger.info(f"{requested_content_hash} SET")
 
             # We need to build a new response since we consumed the body_iterator.
             response = Response(
@@ -84,14 +100,6 @@ class middle_cache(BaseHTTPMiddleware):
                 media_type=function_response.media_type,
             )
             response.headers["x-cache-hit"] = "False"
-
-        else:
-            logger.info(f"{requested_content_hash} FOUND")
-            response = Response(
-                content=returned_redis_content,
-                media_type="application/json",
-                headers={"x-cache-hit": "True"},
-            )
 
         processing_time = time.perf_counter() - start_time
         response.headers["x-processing-time"] = str(processing_time)

@@ -149,3 +149,30 @@ def test_middleware_returns_item_from_cache(client_fixture, redis_fixture):
     assert "x-cache-hit" in response.headers
     assert response.headers["x-cache-hit"] == "True"
     assert float(response.headers["x-processing-time"]) < 0.25
+
+
+def test_middleware_respects_cache_control_header(client_fixture, redis_fixture):
+    """
+    Tests that the middleware respects the "no-store" header and does not store
+    the value in the cache if presented with it.
+    """
+    redis_testing_client: Redis = redis_fixture.get("optional_client")
+
+    all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
+    assert len(all_keys_in_redis_instance) == 0
+
+    # S
+    for _ in range(3):
+        sample_params = {"name": "Alice", "age": 0}
+        response = client_fixture.post(
+            "/subpath/decorated",
+            json=sample_params,
+            headers={"cache-control": "no-store"},
+        )
+        assert response.status_code == 200
+        assert response.json() == {"name": "Alice", "age": 100}
+        assert "x-cache-hit" in response.headers
+        assert response.headers["x-cache-hit"] == "False"
+        assert float(response.headers["x-processing-time"]) > 0.25
+        all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
+        assert len(all_keys_in_redis_instance) == 0
