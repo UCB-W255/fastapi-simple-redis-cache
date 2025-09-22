@@ -28,6 +28,8 @@ testcontainers = {extras = ["redis"], version = "^4.13.0"}
 
 [tool.commitizen]
 version_provider = "pep621"
+tag_format = "v${version}"
+annotated_tag = true
 
 [tool.pytest.ini_options]
 log_cli = true
