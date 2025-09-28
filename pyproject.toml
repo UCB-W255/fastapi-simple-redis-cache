@@ -1,6 +1,6 @@
 [project]
 name = "fastapi-simple-redis-cache"
-version = "1.2.1"
+version = "1.2.2"
 description = "Simple Cache Decorator for FastAPI"
 authors = [
     {name = "Mitchell Karchemsky",email = "mitch.karchemsky@gmail.com"}
