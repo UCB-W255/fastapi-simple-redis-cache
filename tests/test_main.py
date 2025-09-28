@@ -63,6 +63,13 @@ def client_fixture(redis_fixture):
         time.sleep(0.25)
         return input_data
 
+    @sub_app.post("/other-decorated")
+    async def additional_decorated_route(input_data: SampleInput):
+        input_data.age = 999
+        # Simulate sufficiently long computation
+        time.sleep(0.25)
+        return input_data
+
     @app.get("/undecorated")
     async def undecorated_route():
         return "Not Decorated"
@@ -224,3 +231,46 @@ def test_middleware_fails_gracefully_on_error_conditions(client_fixture):
         json=invalid_params,
     )
     assert response.status_code == 422
+
+
+def test_middleware_adds_unique_cache_values_for_endpoints(
+    client_fixture, redis_fixture
+):
+    """
+    Tests that the middleware correctly adds the value to the cache and the
+    cache entries are namespaced from each other
+    """
+    redis_testing_client: Redis = redis_fixture.get("optional_client")
+
+    all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
+    assert len(all_keys_in_redis_instance) == 0
+
+    # First POST
+    sample_params = {"name": "Alice", "age": 0}
+    response = client_fixture.post(
+        "/subpath/decorated",
+        json=sample_params,
+    )
+    assert response.status_code == 200
+    assert response.json() == {"name": "Alice", "age": 100}
+    assert "x-cache-hit" in response.headers
+    assert response.headers["x-cache-hit"] == "False"
+    assert float(response.headers["x-processing-time"]) > 0.25
+
+    all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
+    assert len(all_keys_in_redis_instance) == 1
+
+    # Second POST
+    sample_params = {"name": "Alice", "age": 0}
+    response = client_fixture.post(
+        "/subpath/other-decorated",
+        json=sample_params,
+    )
+    assert response.status_code == 200
+    assert "x-cache-hit" in response.headers
+    assert response.headers["x-cache-hit"] == "False"
+    assert response.json() == {"name": "Alice", "age": 999}
+    assert float(response.headers["x-processing-time"]) > 0.25
+
+    all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
+    assert len(all_keys_in_redis_instance) == 2

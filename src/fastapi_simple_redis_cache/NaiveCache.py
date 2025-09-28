@@ -65,8 +65,8 @@ class NaiveCache(BaseHTTPMiddleware):
         # ==========================================
         logger.info(f"{request.headers.get("cache-control")=}")
         if CACHE_SHOULD_STORE_FLAG:
-            request_content = request.query_params
-            requested_content_hash = self.hashkey_generator(str(request_content))
+            request_content = f"{request.method}:{request.url.path}:{request.query_params}:{await request.body()}"
+            requested_content_hash = self.hashkey_generator(request_content)
 
             logger.info(f"{requested_content_hash} Checking for value in redis")
             returned_redis_content = self.redis_client.get(requested_content_hash)
