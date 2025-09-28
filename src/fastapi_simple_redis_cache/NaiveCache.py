@@ -117,5 +117,4 @@ class NaiveCache(BaseHTTPMiddleware):
 
     def hashkey_generator(self, input_str) -> str:
         hashed_hex = hashlib.sha256(input_str.encode("utf-8")).hexdigest()
-        return f"{self.store_prefix}-{hashed_hex}"
-        return f"{self.store_prefix}-{hashed_hex}"
+        return f"{self.store_prefix}::{hashed_hex}"
