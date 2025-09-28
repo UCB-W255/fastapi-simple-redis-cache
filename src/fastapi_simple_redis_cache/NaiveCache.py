@@ -7,6 +7,7 @@ from fastapi import Request
 from fastapi.responses import Response
 from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
+from redis.exceptions import ConnectionError
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
@@ -33,24 +34,33 @@ class NaiveCache(BaseHTTPMiddleware):
         logger.info(
             f"Attempting to connect to redis at {redis_host}:{redis_port}/{redis_db} with username {redis_username}"
         )
-        self.redis_client = redis.Redis(
-            host=redis_host,
-            port=redis_port,
-            db=redis_db,
-            username=redis_username,
-            password=redis_password,
-            retry=Retry(ExponentialBackoff(cap=10, base=1), retries=10),
-            decode_responses=True,
-        )
-        self.store_prefix = redis_prefix
-        self.store_ttl = redis_ttl
-
-        logger.info(f"Redis ping response: {self.redis_client.ping()}")
+        try:
+            self.redis_client = redis.Redis(
+                host=redis_host,
+                port=redis_port,
+                db=redis_db,
+                username=redis_username,
+                password=redis_password,
+                retry=Retry(ExponentialBackoff(cap=10, base=1), retries=10),
+                decode_responses=True,
+            )
+            self.store_prefix = redis_prefix
+            self.store_ttl = redis_ttl
+            logger.info(f"Redis ping response: {self.redis_client.ping()}")
+        except ConnectionError as e:
+            logger.error(f"Could not connect to Redis: {e}")
+            self.redis_client = None
 
     async def dispatch(self, request: Request, call_next):
         logger.info("Executing Redis Cache Middleware")
+
         start_time = time.perf_counter()
-        CACHE_SHOULD_STORE_FLAG = request.headers.get("cache-control") != "no-store"
+        if not self.redis_client:
+            logger.info("No redis connection established, skipping cache attempts")
+            CACHE_SHOULD_STORE_FLAG = False
+        else:
+            CACHE_SHOULD_STORE_FLAG = request.headers.get("cache-control") != "no-store"
+
         SHOULD_RUN_DOWNSTREAM = True
         # ==========================================
         logger.info(f"{request.headers.get("cache-control")=}")

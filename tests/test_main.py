@@ -176,3 +176,36 @@ def test_middleware_respects_cache_control_header(client_fixture, redis_fixture)
         assert float(response.headers["x-processing-time"]) > 0.25
         all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
         assert len(all_keys_in_redis_instance) == 0
+
+
+def test_middleware_fails_gracefully_when_no_redis_present():
+    """
+    Ensure that if no valid connection to redis could be established, that the
+    middleware fails gracefully and continues to allow operation of the
+    underlying application
+    """
+    unadorned_app = FastAPI()
+    unadorned_app.add_middleware(
+        NaiveCache,
+        redis_host="NONEXISTANT_HOST",
+        redis_port=-1,
+        redis_db=0,
+        redis_prefix="pytest-example",
+    )
+
+    @unadorned_app.post("/uncachable_routes")
+    async def decorated_route(input_data: SampleInput):
+        input_data.age = 100
+        return input_data
+
+    # First POST
+    sample_params = {"name": "Alice", "age": 0}
+    with TestClient(unadorned_app) as unadorned_test_client:
+        response = unadorned_test_client.post(
+            "/uncachable_routes",
+            json=sample_params,
+        )
+        assert response.status_code == 200
+        assert response.json() == {"name": "Alice", "age": 100}
+        assert "x-cache-hit" in response.headers
+        assert response.headers["x-cache-hit"] == "False"
