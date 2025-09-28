@@ -54,6 +54,7 @@ def client_fixture(redis_fixture):
         redis_port=redis_fixture.get("port"),
         redis_db=0,
         redis_prefix="pytest-example",
+        excluded_paths=["/subpath/health"],
     )
 
     @sub_app.post("/decorated")
@@ -69,6 +70,10 @@ def client_fixture(redis_fixture):
         # Simulate sufficiently long computation
         time.sleep(0.25)
         return input_data
+
+    @sub_app.get("/health")
+    async def health_endpoint():
+        return "pong"
 
     @app.get("/undecorated")
     async def undecorated_route():
@@ -274,3 +279,22 @@ def test_middleware_adds_unique_cache_values_for_endpoints(
 
     all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
     assert len(all_keys_in_redis_instance) == 2
+
+
+def test_middleware_skips_excluded_paths(client_fixture, redis_fixture):
+    """
+    Tests that the middleware correctly skips over paths in the ignore list
+    """
+    redis_testing_client: Redis = redis_fixture.get("optional_client")
+
+    all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
+    assert len(all_keys_in_redis_instance) == 0
+
+    # First POST
+    response = client_fixture.get(
+        "/subpath/health",
+    )
+    assert response.status_code == 200
+
+    all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
+    assert len(all_keys_in_redis_instance) == 0

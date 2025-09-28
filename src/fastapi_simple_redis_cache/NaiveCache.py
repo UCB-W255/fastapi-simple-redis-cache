@@ -24,6 +24,7 @@ class NaiveCache(BaseHTTPMiddleware):
         redis_password=None,
         redis_prefix="undefined-prefix",
         redis_ttl=300,
+        excluded_paths=[],
     ):
         if not all([redis_host, redis_port, redis_db is not None]):
             raise ValueError(
@@ -46,6 +47,7 @@ class NaiveCache(BaseHTTPMiddleware):
             )
             self.store_prefix = redis_prefix
             self.store_ttl = redis_ttl
+            self.excluded_paths = excluded_paths
             logger.info(f"Redis ping response: {self.redis_client.ping()}")
         except ConnectionError as e:
             logger.error(f"Could not connect to Redis: {e}")
@@ -58,8 +60,16 @@ class NaiveCache(BaseHTTPMiddleware):
         if not self.redis_client:
             logger.info("No redis connection established, skipping cache attempts")
             CACHE_SHOULD_STORE_FLAG = False
+        elif request.headers.get("cache-control") == "no-store":
+            logger.info("cache-control set to no-store, skipping cache attempts")
+            CACHE_SHOULD_STORE_FLAG = False
+        elif request.url.path in self.excluded_paths:
+            logger.info(
+                "External request hitting path in excluded paths, skipping cache attempts"
+            )
+            CACHE_SHOULD_STORE_FLAG = False
         else:
-            CACHE_SHOULD_STORE_FLAG = request.headers.get("cache-control") != "no-store"
+            CACHE_SHOULD_STORE_FLAG = True
 
         SHOULD_RUN_DOWNSTREAM = True
         # ==========================================
