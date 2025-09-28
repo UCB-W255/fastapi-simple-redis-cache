@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 logger = logging.getLogger(__name__)
 
 
-class middle_cache(BaseHTTPMiddleware):
+class NaiveCache(BaseHTTPMiddleware):
     def __init__(
         self,
         app,

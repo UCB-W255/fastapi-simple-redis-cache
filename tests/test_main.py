@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from redis import Redis
 from testcontainers.redis import RedisContainer
 
-from src.main import middle_cache
+from src.fastapi_simple_redis_cache.NaiveCache import NaiveCache
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def client_fixture(redis_fixture):
 
     app.mount("/subpath", sub_app)
     sub_app.add_middleware(
-        middle_cache,
+        NaiveCache,
         redis_host=redis_fixture.get("host"),
         redis_port=redis_fixture.get("port"),
         redis_db=0,
