@@ -90,7 +90,7 @@ class NaiveCache(BaseHTTPMiddleware):
 
             if function_response.status_code != 200:
                 # Early exit before attempting to store bad values in redis
-                return function_response, None
+                return function_response
 
             # Extract body from function response iterator
             chunks = [chunk async for chunk in function_response.body_iterator]
@@ -117,4 +117,5 @@ class NaiveCache(BaseHTTPMiddleware):
 
     def hashkey_generator(self, input_str) -> str:
         hashed_hex = hashlib.sha256(input_str.encode("utf-8")).hexdigest()
+        return f"{self.store_prefix}-{hashed_hex}"
         return f"{self.store_prefix}-{hashed_hex}"

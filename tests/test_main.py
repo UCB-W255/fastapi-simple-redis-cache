@@ -209,3 +209,18 @@ def test_middleware_fails_gracefully_when_no_redis_present():
         assert response.json() == {"name": "Alice", "age": 100}
         assert "x-cache-hit" in response.headers
         assert response.headers["x-cache-hit"] == "False"
+
+
+def test_middleware_fails_gracefully_on_error_conditions(client_fixture):
+    response = client_fixture.get("/not-a-route")
+    # The middleware should pass through the 404 from the router
+    assert response.status_code == 404
+
+    # This should cause pydantic to raise an error, which should be handled
+    # gracefully by the middleware
+    invalid_params = {"name": "Alice", "non_existant_field": 0}
+    response = client_fixture.post(
+        "/subpath/decorated",
+        json=invalid_params,
+    )
+    assert response.status_code == 422
