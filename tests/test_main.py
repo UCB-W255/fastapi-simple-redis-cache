@@ -298,3 +298,43 @@ def test_middleware_skips_excluded_paths(client_fixture, redis_fixture):
 
     all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
     assert len(all_keys_in_redis_instance) == 0
+
+
+@pytest.mark.parametrize("redis_url_prefix", [("redis://"), ("")])
+def test_redis_initialization_works_with_or_without_prefix(
+    redis_url_prefix, redis_fixture
+):
+    test_app = FastAPI()
+    test_app.add_middleware(
+        NaiveCache,
+        redis_host=f"{redis_url_prefix}{redis_fixture.get('host')}",
+        redis_port=redis_fixture.get("port"),
+        redis_db=0,
+        redis_prefix="pytest-example",
+    )
+
+    @test_app.post("/simple_hit")
+    async def decorated_route(input_data: SampleInput):
+        input_data.age = 100
+        return input_data
+
+    # First POST
+    sample_params = {"name": "Alice", "age": 0}
+    with TestClient(test_app) as unadorned_test_client:
+        response = unadorned_test_client.post(
+            "/simple_hit",
+            json=sample_params,
+        )
+        assert response.status_code == 200
+        assert response.json() == {"name": "Alice", "age": 100}
+        assert "x-cache-hit" in response.headers
+        assert response.headers["x-cache-hit"] == "False"
+
+        response = unadorned_test_client.post(
+            "/simple_hit",
+            json=sample_params,
+        )
+        assert response.status_code == 200
+        assert response.json() == {"name": "Alice", "age": 100}
+        assert "x-cache-hit" in response.headers
+        assert response.headers["x-cache-hit"] == "True"

@@ -37,7 +37,7 @@ class NaiveCache(BaseHTTPMiddleware):
         )
         try:
             self.redis_client = redis.Redis(
-                host=redis_host,
+                host=redis_host.removeprefix("redis://"),
                 port=redis_port,
                 db=redis_db,
                 username=redis_username,
