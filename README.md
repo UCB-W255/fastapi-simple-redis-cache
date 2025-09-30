@@ -9,13 +9,13 @@ A simple and easy-to-use caching library for [FastAPI](https://fastapi.tiangolo.
 
 -   **Middleware based caching**: Simple middleware extension which will add caching to your API endpoint responses.
 -   **Async support**: Fully compatible with FastAPI's `async` routes.
--   **Configurable expiration**: Set cache TTL (Time-To-Live) per route.
+-   **Configurable expiration**: Set cache TTL (Time-To-Live).
 -   **Lightweight**: Minimal dependencies and easy to integrate.
 
 ## Requirements
 
 *   Python `(>=3.13,<4.0)`
-*   FastAPI `(>=0.116.2,<0.117.0)`
+*   FastAPI `(>=0.116.2,<1.0.0)`
 *   redis-py `(>=6.4.0,<7.0.0)`
 
 ## Installation
