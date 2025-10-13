@@ -338,3 +338,34 @@ def test_redis_initialization_works_with_or_without_prefix(
         assert response.json() == {"name": "Alice", "age": 100}
         assert "x-cache-hit" in response.headers
         assert response.headers["x-cache-hit"] == "True"
+
+
+def test_prefix_includes_path_and_http_verb(client_fixture, redis_fixture):
+    redis_testing_client: Redis = redis_fixture.get("optional_client")
+
+    all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
+    assert len(all_keys_in_redis_instance) == 0
+
+    # First POST
+    sample_params = {"name": "Alice", "age": 0}
+    response = client_fixture.post(
+        "/subpath/decorated",
+        json=sample_params,
+    )
+    assert response.status_code == 200
+    assert response.json() == {"name": "Alice", "age": 100}
+    assert "x-cache-hit" in response.headers
+    assert response.headers["x-cache-hit"] == "False"
+    assert float(response.headers["x-processing-time"]) > 0.25
+
+    all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
+    assert len(all_keys_in_redis_instance) == 1
+    # Ensure path and verb exist
+    delimiter_value = "::"
+    split_redis_key = (
+        all_keys_in_redis_instance[0].decode("utf-8").split(delimiter_value)
+    )
+
+    assert len(split_redis_key) == 4
+    assert split_redis_key[1] == "POST"
+    assert split_redis_key[2] == "/subpath/decorated"
