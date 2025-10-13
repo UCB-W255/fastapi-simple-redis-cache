@@ -54,7 +54,7 @@ def client_fixture(redis_fixture):
         redis_port=redis_fixture.get("port"),
         redis_db=0,
         redis_prefix="pytest-example",
-        excluded_paths=["/subpath/health"],
+        excluded_paths=["/health"],
     )
 
     @sub_app.post("/decorated")
@@ -369,3 +369,70 @@ def test_prefix_includes_path_and_http_verb(client_fixture, redis_fixture):
     assert len(split_redis_key) == 4
     assert split_redis_key[1] == "POST"
     assert split_redis_key[2] == "/subpath/decorated"
+
+
+def test_caching_is_skipped_on_excluded_sub_paths(redis_fixture):
+    test_app = FastAPI()
+    sub_app = FastAPI()
+
+    test_app.mount("/subpath", sub_app)
+    sub_app.add_middleware(
+        NaiveCache,
+        redis_host=f"{redis_fixture.get('host')}",
+        redis_port=redis_fixture.get("port"),
+        redis_db=0,
+        redis_prefix="pytest-example",
+        excluded_paths=["/simple_hit"],
+    )
+
+    @test_app.post("/simple_hit")
+    async def decorated_route(input_data: SampleInput):
+        input_data.age = 100
+        return input_data
+
+    @sub_app.post("/simple_hit")
+    async def skip_route(input_data: SampleInput):
+        input_data.age = -1
+        return input_data
+
+    sample_params = {"name": "Alice", "age": 0}
+    with TestClient(test_app) as test_client:
+        # First POST against skipped route
+        response = test_client.post(
+            "/subpath/simple_hit",
+            json=sample_params,
+        )
+        assert response.status_code == 200
+        assert response.json() == {"name": "Alice", "age": -1}
+        assert "x-cache-hit" in response.headers
+        assert response.headers["x-cache-hit"] == "False"
+
+        response = test_client.post(
+            "/subpath/simple_hit",
+            json=sample_params,
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"name": "Alice", "age": -1}
+        assert "x-cache-hit" in response.headers
+        assert response.headers["x-cache-hit"] == "False"
+
+        # Second POST against cached endpoint
+        response = test_client.post(
+            "/simple_hit",
+            json=sample_params,
+        )
+        assert response.status_code == 200
+        assert response.json() == {"name": "Alice", "age": 100}
+
+        response = test_client.post(
+            "/simple_hit",
+            json=sample_params,
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"name": "Alice", "age": 100}
+
+    redis_testing_client: Redis = redis_fixture.get("optional_client")
+    all_keys_in_redis_instance = [k for k in redis_testing_client.scan_iter()]
+    assert len(all_keys_in_redis_instance) == 0

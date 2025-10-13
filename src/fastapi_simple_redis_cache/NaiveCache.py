@@ -55,15 +55,19 @@ class NaiveCache(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         logger.info("Executing Redis Cache Middleware")
-
         start_time = time.perf_counter()
+
+        full_path = request.scope.get("path")
+        root_path = request.scope.get("root_path", "")
+        local_path = full_path.removeprefix(root_path)
+
         if not self.redis_client:
             logger.info("No redis connection established, skipping cache attempts")
             CACHE_SHOULD_STORE_FLAG = False
         elif request.headers.get("cache-control") == "no-store":
             logger.info("cache-control set to no-store, skipping cache attempts")
             CACHE_SHOULD_STORE_FLAG = False
-        elif request.url.path in self.excluded_paths:
+        elif local_path in self.excluded_paths:
             logger.info(
                 "External request hitting path in excluded paths, skipping cache attempts"
             )
