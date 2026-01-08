@@ -76,7 +76,9 @@ class NaiveCache(BaseHTTPMiddleware):
         logger.info(f"{request.headers.get("cache-control")=}")
         if CACHE_SHOULD_STORE_FLAG:
             request_content = f"{request.method}:{request.url.path}:{request.query_params}:{await request.body()}"
-            requested_content_hash = self.hashkey_generator(request_content)
+            requested_content_hash = self.hashkey_generator(
+                request_content, request.method, request.url.path
+            )
 
             logger.info(f"{requested_content_hash} Checking for value in redis")
             returned_redis_content = self.redis_client.get(requested_content_hash)
@@ -125,6 +127,6 @@ class NaiveCache(BaseHTTPMiddleware):
         response.headers["x-processing-time"] = str(processing_time)
         return response
 
-    def hashkey_generator(self, input_str) -> str:
+    def hashkey_generator(self, input_str, http_method, http_path) -> str:
         hashed_hex = hashlib.sha256(input_str.encode("utf-8")).hexdigest()
-        return f"{self.store_prefix}::{hashed_hex}"
+        return f"{self.store_prefix}::{http_method}::{http_path}::{hashed_hex}"
